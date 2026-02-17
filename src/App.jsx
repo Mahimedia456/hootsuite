@@ -2,20 +2,18 @@ import React, { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { applyTheme, getInitialTheme } from "./lib/theme";
 
-// Auth Pages
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import VerifyEmail from "./pages/VerifyEmail";
+import Dashboard from "./pages/Dashboard"; // ✅ ADD THIS
+import Inbox from "./pages/Inbox";
+import ConversationDetail from "./pages/ConversationDetail";
 
-// Dashboard Page
-import Dashboard from "./pages/Dashboard";
+
 
 export default function App() {
   const [theme, setTheme] = useState(getInitialTheme());
-
-  // Fake auth state for now
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     applyTheme(theme);
@@ -23,53 +21,19 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/login" element={<Login theme={theme} setTheme={setTheme} />} />
+      <Route path="/forgot-password" element={<ForgotPassword theme={theme} setTheme={setTheme} />} />
+      <Route path="/verify-email" element={<VerifyEmail theme={theme} setTheme={setTheme} />} />
+      <Route path="/reset-password" element={<ResetPassword theme={theme} setTheme={setTheme} />} />
 
-      {/* ================= AUTH ROUTES ================= */}
+      {/* ✅ REAL DASHBOARD PAGE */}
+      <Route path="/dashboard" element={<Dashboard theme={theme} setTheme={setTheme} />} />
+<Route path="/inbox" element={<Inbox theme={theme} setTheme={setTheme} />} />
+<Route
+  path="/conversations/:id"
+  element={<ConversationDetail theme={theme} setTheme={setTheme} />}
+/>
 
-      <Route
-        path="/login"
-        element={
-          isAuthenticated ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <Login
-              theme={theme}
-              setTheme={setTheme}
-              onLogin={() => setIsAuthenticated(true)}
-            />
-          )
-        }
-      />
-
-      <Route
-        path="/forgot-password"
-        element={<ForgotPassword theme={theme} setTheme={setTheme} />}
-      />
-
-      <Route
-        path="/verify-email"
-        element={<VerifyEmail theme={theme} setTheme={setTheme} />}
-      />
-
-      <Route
-        path="/reset-password"
-        element={<ResetPassword theme={theme} setTheme={setTheme} />}
-      />
-
-      {/* ================= PROTECTED ROUTE ================= */}
-
-      <Route
-        path="/dashboard"
-        element={
-          isAuthenticated ? (
-            <Dashboard theme={theme} setTheme={setTheme} />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-
-      {/* Default Redirect */}
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

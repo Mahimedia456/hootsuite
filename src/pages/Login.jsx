@@ -1,21 +1,82 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { toggleTheme } from "../lib/theme.js";
+import logo from "../assets/images/logo.png";
+import { supabase } from "../lib/supabase.js";
+
+const DEV_PASSWORD = "mahimediasolutions"; // your password (dev only)
+
+const QUICK_USERS = [
+  { key: "owner", label: "Owner", email: "admin@mahimediasolutions.com" },
+  { key: "editor", label: "Editor", email: "editor@mahimediasolutions.com" },
+  { key: "support", label: "Support", email: "support@mahimediasolutions.com" },
+  { key: "viewer", label: "Viewer", email: "Viewer", email: "viewer@mahimediasolutions.com" },
+];
 
 export default function Login({ theme, setTheme }) {
   const isDark = theme === "dark";
+  const navigate = useNavigate();
 
   const [showPwd, setShowPwd] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // dev quick login
+  const [activeRole, setActiveRole] = useState("owner");
+
+  // UX states
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
   const canSubmit = useMemo(() => {
     return email.trim().length > 0 && password.trim().length > 0;
   }, [email, password]);
 
-  function onSubmit(e) {
+  function pickRole(roleKey) {
+    const u = QUICK_USERS.find((x) => x.key === roleKey);
+    if (!u) return;
+
+    setActiveRole(roleKey);
+    setEmail(u.email);
+    setPassword(DEV_PASSWORD);
+    setErrorMsg("");
+  }
+
+  // Optional: prefill owner in dev mode
+  useEffect(() => {
+    pickRole("owner");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function onSubmit(e) {
     e.preventDefault();
-    // UI only for now
-    console.log("Login:", { email, password });
+    setErrorMsg("");
+
+    if (!canSubmit || loading) return;
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (error) throw error;
+
+      console.log("Logged in:", data?.user?.email);
+
+      // IMPORTANT: You must navigate to an existing route.
+      // Your app currently has /dashboard, not /inbox.
+      navigate("/dashboard", { replace: true });
+    } catch (err) {
+      const msg =
+        err?.message ||
+        err?.error_description ||
+        (typeof err === "string" ? err : "Login failed");
+      setErrorMsg(msg);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -39,17 +100,47 @@ export default function Login({ theme, setTheme }) {
         {/* Card */}
         <main className="glass-effect relative z-10 w-full max-w-[460px] rounded-xl p-8 shadow-2xl transition-all duration-500">
           {/* Logo */}
-          <div className="mb-10 flex flex-col items-center text-center">
-            <div className="mb-4 flex items-center justify-center h-12 w-12 rounded-lg bg-primary/20 text-primary">
-              <span className="material-symbols-outlined text-[32px]">hub</span>
-            </div>
-            <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-primary/80 dark:text-primary">
+          <div className="mb-6 flex flex-col items-center text-center">
+            <img src={logo} alt="Mahimedia Solutions" className="h-12 w-auto object-contain" />
+            <h2 className="mt-4 text-sm font-bold uppercase tracking-[0.2em] text-primary/80 dark:text-primary">
               MAHIMEDIA solutions
             </h2>
           </div>
 
+          {/* Internal Role Tabs (DEV) */}
+          <div className="mb-6">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+              Internal quick login
+            </div>
+
+            <div className="grid grid-cols-4 gap-2">
+              {QUICK_USERS.map((u) => {
+                const active = activeRole === u.key;
+                return (
+                  <button
+                    key={u.key}
+                    type="button"
+                    onClick={() => pickRole(u.key)}
+                    className={[
+                      "rounded-lg px-2 py-2 text-xs font-semibold transition-all border",
+                      active
+                        ? "bg-primary text-background-dark border-primary shadow-lg shadow-primary/20"
+                        : "bg-white/40 dark:bg-white/5 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-primary/10 hover:bg-white dark:hover:bg-white/10",
+                    ].join(" ")}
+                  >
+                    {u.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-500">
+              Click a role to auto-fill credentials (dev mode).
+            </div>
+          </div>
+
           {/* Heading */}
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
               Sign in
             </h1>
@@ -57,6 +148,13 @@ export default function Login({ theme, setTheme }) {
               Enter your credentials to access the Unified Social Suite.
             </p>
           </div>
+
+          {/* Error */}
+          {errorMsg ? (
+            <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {errorMsg}
+            </div>
+          ) : null}
 
           {/* Form */}
           <form onSubmit={onSubmit} className="space-y-5">
@@ -76,6 +174,7 @@ export default function Login({ theme, setTheme }) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -86,9 +185,12 @@ export default function Login({ theme, setTheme }) {
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Password
                 </label>
-                <a className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors" href="#">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+                >
                   Forgot password?
-                </a>
+                </Link>
               </div>
 
               <div className="relative group">
@@ -103,6 +205,7 @@ export default function Login({ theme, setTheme }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                 />
 
                 <button
@@ -119,14 +222,14 @@ export default function Login({ theme, setTheme }) {
             </div>
 
             {/* Submit */}
-            <div className="pt-4">
+            <div className="pt-2">
               <button
                 type="submit"
-                disabled={!canSubmit}
+                disabled={!canSubmit || loading}
                 className="group relative flex w-full justify-center rounded-lg bg-primary px-4 py-4 text-sm font-bold text-background-dark shadow-lg shadow-primary/20 hover:bg-white hover:shadow-primary/40 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <span className="flex items-center">
-                  Sign in
+                  {loading ? "Signing in..." : "Sign in"}
                   <span className="material-symbols-outlined ml-2 text-[18px] transition-transform group-hover:translate-x-1">
                     arrow_forward
                   </span>
@@ -135,52 +238,16 @@ export default function Login({ theme, setTheme }) {
             </div>
           </form>
 
-          {/* Divider */}
-          <div className="my-8 flex items-center gap-4">
-            <div className="h-px flex-1 bg-slate-200 dark:bg-primary/10" />
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Or continue with
-            </span>
-            <div className="h-px flex-1 bg-slate-200 dark:bg-primary/10" />
-          </div>
-
-          {/* Social Buttons (UI only) */}
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              type="button"
-              className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 dark:border-primary/10 bg-white/50 dark:bg-white/5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-white/10 transition-colors"
-            >
-              <span className="text-sm font-medium">Google</span>
-            </button>
-
-            <button
-              type="button"
-              className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 dark:border-primary/10 bg-white/50 dark:bg-white/5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-white/10 transition-colors"
-            >
-              <span className="text-sm font-medium">GitHub</span>
-            </button>
-          </div>
-
           {/* Footer */}
           <footer className="mt-10 border-t border-slate-200 dark:border-primary/10 pt-6">
             <div className="flex flex-col items-center gap-3 text-center">
               <p className="text-xs text-slate-400 dark:text-slate-500">
-                © 2024 MAHIMEDIA solutions. All rights reserved.
+                © 2026 MAHIMEDIA solutions. All rights reserved.
               </p>
-              <div className="flex gap-4 text-xs font-medium text-slate-500 dark:text-slate-400">
-                <a className="hover:text-primary transition-colors" href="#">
-                  Privacy Policy
-                </a>
-                <span className="text-slate-300 dark:text-slate-700">•</span>
-                <a className="hover:text-primary transition-colors" href="#">
-                  Terms of Service
-                </a>
-              </div>
             </div>
           </footer>
         </main>
 
-        {/* Glow accent */}
         <div className="absolute bottom-[-10%] left-[-5%] h-[500px] w-[500px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
       </div>
     </div>
